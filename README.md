@@ -13,7 +13,7 @@ A deployed web app that automatically fact-checks PDF documents using **Gemini A
 
 ## Live Demo
 
-**Deployed App:** [https://your-app.streamlit.app](https://your-app.streamlit.app) *(replace with your live URL)*
+**Deployed App:** [https://factcheck-app-kk3j5fvscskdp7nymqmqrw.streamlit.app/](https://factcheck-app-kk3j5fvscskdp7nymqmqrw.streamlit.app/) *(replace with your live URL)*
 
 ## Setup & Run Locally
 
