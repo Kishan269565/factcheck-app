@@ -36,7 +36,7 @@ MODELS = [
 ]
 
 # 🔑 Hardcoded API Key
-GEMINI_API_KEY = "AIzaSyB8YLXUlozNizjGPawQmJTnPCKZufhQ5xQ"
+GEMINI_API_KEY = "AIzaSyDPZFnZJU_h9Ir0juRjdua5hICPpd__oO8"
 
 def get_api_key():
     return GEMINI_API_KEY
