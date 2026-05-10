@@ -101,16 +101,12 @@ requests>=2.31.0
 - Very long PDFs (>10,000 characters) are truncated for claim extraction
 
 ---
-```
 
 ## Snapshot
 
-![snapshot1](https://drive.google.com/file/d/1AoF6-XYT_6Qwe0EXYUOCqppkgsDJV4RL/view?usp=sharing)
+![Snapshot 1](https://drive.google.com/uc?export=view&id=1AoF6-XYT_6Qwe0EXYUOCqppkgsDJV4RL)
 
-![snapshot1](https://drive.google.com/file/d/15N-H1JYTB91eD98dsVZfxHabnONHeLhv/view?usp=sharing
-)
-
-
+![Snapshot 2](https://drive.google.com/uc?export=view&id=15N-H1JYTB91eD98dsVZfxHabnONHeLhv)
 
 ---
 
