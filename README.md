@@ -25,8 +25,8 @@ A deployed web app that automatically fact-checks PDF documents using **Gemini A
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/factcheck-ai.git
-cd factcheck-ai
+git clone https://github.com/Kishan269565/factcheck-app.git
+cd factcheck-app
 pip install -r requirements.txt
 ```
 
@@ -80,7 +80,7 @@ Tested against "trap documents" containing intentional lies and outdated statist
 ## Project Structure
 
 ```
-factcheck-ai/
+factcheck-app/
 ├── app.py              # Main Streamlit application
 ├── requirements.txt    # Python dependencies
 └── README.md           # This file
@@ -99,6 +99,14 @@ requests>=2.31.0
 - Free Gemini API tier has rate limits; the app includes automatic retry and delay logic
 - Claims are limited to 10 per run to stay within free quota
 - Very long PDFs (>10,000 characters) are truncated for claim extraction
+
+---
+```
+
+## Snapshot
+[https://drive.google.com/file/d/1AoF6-XYT_6Qwe0EXYUOCqppkgsDJV4RL/view?usp=sharing]
+[https://drive.google.com/file/d/15N-H1JYTB91eD98dsVZfxHabnONHeLhv/view?usp=sharing]
+
 
 ---
 
