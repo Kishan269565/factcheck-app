@@ -414,7 +414,9 @@ CLAIM: "{claim}"
 You MUST classify the claim as one of exactly 3 verdicts:
 - VERIFIED: the claim is accurate and matches current data
 - INACCURATE: the claim is outdated or partially wrong (provide the correct fact)
-- FALSE: the claim is clearly wrong with no supporting evidence
+- FALSE: use this for any of the following — the claim is contradicted by evidence,
+  OR it is not a checkable factual claim (e.g. an opinion, belief, or nonsense statement),
+  OR there is insufficient evidence to confirm it either way
 
 Reply with ONLY this JSON (no markdown, no extra text):
 {{"verdict": "VERIFIED", "confidence": 90, "explanation": "short reason here", "correct_fact": null, "source": "source name"}}
@@ -422,6 +424,9 @@ Reply with ONLY this JSON (no markdown, no extra text):
 Rules:
 - verdict must be exactly: VERIFIED, INACCURATE, or FALSE — nothing else
 - correct_fact: provide the real/current fact if verdict is INACCURATE or FALSE, else null
+- explanation: if verdict is FALSE because the claim could not be verified or is not a
+  factual claim, say so explicitly (e.g. "Not a verifiable factual claim" or
+  "Insufficient evidence to confirm"), rather than implying it was disproven
 - Keep all string values under 200 characters"""
     try:
         raw, model_used = gemini_call(prompt, use_search=True)
