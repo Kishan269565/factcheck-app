@@ -196,6 +196,12 @@ div[data-testid="stButton"] button:hover, div[data-testid="stDownloadButton"] bu
 .stamp.verified { color: var(--verified); }
 .stamp.inaccurate { color: var(--inaccurate); }
 .stamp.false { color: var(--false); }
+
+/* Hide Streamlit's default chrome: toolbar (Fork/Deploy), hamburger menu, footer */
+[data-testid="stToolbar"] { visibility: hidden; height: 0; }
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header[data-testid="stHeader"] { background: transparent; }
 </style>
 """, unsafe_allow_html=True)
 
