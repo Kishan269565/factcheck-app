@@ -5,27 +5,201 @@ import json
 import os
 import requests
 import time
+import hashlib
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 st.set_page_config(
-    page_title="FactCheck AI - Truth Layer",
-    page_icon="🔍",
+    page_title="FactCheck — Verification Desk",
+    page_icon="🖋️",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
+# ── Design system: "wire desk" case-file aesthetic ──────────
+# Paper-dark ledger background, typewriter display face, mono
+# utility face for evidence/metadata, ink-stamp verdict badges.
 st.markdown("""
 <style>
-    .main { background: #0a1628; }
-    .stApp { background: #0a1628; }
-    h1, h2, h3 { color: #00c2ff !important; }
-    .claim-card { padding: 16px; border-radius: 10px; margin: 10px 0; }
-    .verified { background: #0a3d2e; border-left: 4px solid #00c874; }
-    .inaccurate { background: #3d2a0a; border-left: 4px solid #ffd93d; }
-    .false { background: #3d0a0a; border-left: 4px solid #ff6b6b; }
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg: #17160f;
+    --bg-panel: #1d1c14;
+    --ink: #ece6d6;
+    --ink-dim: #9b9382;
+    --rule: #3a3527;
+    --accent: #c9a23e;
+    --verified: #7a9b5e;
+    --inaccurate: #c9952f;
+    --false: #b5483d;
+}
+
+html, body, .stApp {
+    background-color: var(--bg) !important;
+    background-image: linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 100% 30px;
+}
+.block-container { padding-top: 2rem; }
+
+/* Typography */
+* { font-family: 'Inter', sans-serif; }
+h1 {
+    font-family: 'Special Elite', monospace !important;
+    color: var(--ink) !important;
+    letter-spacing: 1px;
+    font-size: 2.4rem !important;
+    margin-bottom: 0 !important;
+}
+h2, h3 { color: var(--ink) !important; font-family: 'Inter', sans-serif; font-weight: 600 !important; }
+p, span, label, .stMarkdown { color: var(--ink) !important; }
+.eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--accent);
+    letter-spacing: 3px;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.subtitle { color: var(--ink-dim) !important; font-size: 1.02rem; margin-top: 4px; }
+hr, [data-testid="stDivider"] { border-color: var(--rule) !important; opacity: 1 !important; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: var(--bg-panel) !important;
+    border-right: 1px solid var(--rule);
+}
+[data-testid="stSidebar"] * { color: var(--ink) !important; }
+
+/* Metrics */
+[data-testid="stMetric"] {
+    background: var(--bg-panel);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 14px 16px;
+}
+[data-testid="stMetricLabel"] {
+    font-family: 'IBM Plex Mono', monospace !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.72rem !important;
+    color: var(--ink-dim) !important;
+}
+[data-testid="stMetricValue"] {
+    font-family: 'IBM Plex Mono', monospace !important;
+    color: var(--ink) !important;
+}
+
+/* Buttons */
+div[data-testid="stButton"] button, div[data-testid="stDownloadButton"] button {
+    background-color: var(--accent) !important;
+    color: #1a1810 !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 2px !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 1rem !important;
+    transition: all 0.15s ease;
+}
+div[data-testid="stButton"] button:hover, div[data-testid="stDownloadButton"] button:hover {
+    background-color: transparent !important;
+    color: var(--accent) !important;
+}
+
+/* File uploader */
+[data-testid="stFileUploaderDropzone"] {
+    background-color: var(--bg-panel) !important;
+    border: 1px dashed var(--rule) !important;
+    border-radius: 2px !important;
+}
+[data-testid="stFileUploaderDropzone"] * { color: var(--ink-dim) !important; }
+
+/* Tabs styled like folder tabs */
+[data-testid="stTabs"] button {
+    font-family: 'IBM Plex Mono', monospace !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.8rem !important;
+    color: var(--ink-dim) !important;
+}
+[data-testid="stTabs"] button[aria-selected="true"] {
+    color: var(--accent) !important;
+    border-bottom: 2px solid var(--accent) !important;
+}
+
+/* Selectbox / inputs */
+[data-baseweb="select"] { background-color: var(--bg-panel) !important; }
+[data-testid="stSelectbox"] * { color: var(--ink) !important; }
+
+/* Progress bar */
+[data-testid="stProgress"] > div > div { background-color: var(--accent) !important; }
+
+/* Expander */
+[data-testid="stExpander"] {
+    background-color: var(--bg-panel) !important;
+    border: 1px solid var(--rule) !important;
+    border-radius: 2px !important;
+}
+
+/* ── Evidence entry: the claim card, redesigned as a case-file row ── */
+.entry {
+    position: relative;
+    background: var(--bg-panel);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: 2px;
+    padding: 18px 20px 16px 20px;
+    margin: 14px 0;
+}
+.entry.verified { border-left-color: var(--verified); }
+.entry.inaccurate { border-left-color: var(--inaccurate); }
+.entry.false { border-left-color: var(--false); }
+
+.entry-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.entry-claim {
+    font-size: 1.02rem;
+    color: var(--ink);
+    margin: 8px 0 12px 0;
+    line-height: 1.45;
+}
+.entry-body {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.86rem;
+    color: var(--ink-dim);
+    line-height: 1.6;
+}
+.entry-body b { color: var(--ink); font-weight: 600; }
+
+/* Ink-stamp verdict badge — the signature element */
+.stamp {
+    display: inline-block;
+    font-family: 'Special Elite', monospace;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 0.95rem;
+    padding: 4px 14px;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+    transform: rotate(-3deg);
+    float: right;
+    margin-left: 12px;
+}
+.stamp.verified { color: var(--verified); }
+.stamp.inaccurate { color: var(--inaccurate); }
+.stamp.false { color: var(--false); }
 </style>
 """, unsafe_allow_html=True)
 
-# ✅ Correct working model names
+# ── Models (in fallback order) ─────────────────────────────
 MODELS = [
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -35,18 +209,27 @@ MODELS = [
     "gemini-1.5-flash-8b",
 ]
 
-# 🔑 Hardcoded API Key
-GEMINI_API_KEY = "AIzaSyDPZFnZJU_h9Ir0juRjdua5hICPpd__oO8"
 
-def get_api_key():
-    return GEMINI_API_KEY
+def get_api_key() -> str:
+    """
+    Pulls the Gemini API key from Streamlit secrets or an env var.
+    NEVER hardcode the key in source — it gets pushed to git history
+    and anyone can scrape/use it.
+    """
+    key = st.secrets.get("GEMINI_API_KEY", None) if hasattr(st, "secrets") else None
+    if not key:
+        key = os.environ.get("GEMINI_API_KEY")
+    return key
 
 
-def gemini_call(prompt: str, use_search: bool = False, retries: int = 3) -> str:
+def gemini_call(prompt: str, use_search: bool = False, retries: int = 3) -> tuple[str, str]:
+    """Returns (response_text, model_used)."""
     api_key = get_api_key()
     if not api_key:
-        st.error("❌ GEMINI_API_KEY not set.")
-        st.stop()
+        raise RuntimeError(
+            "GEMINI_API_KEY not set. Add it to .streamlit/secrets.toml "
+            "or as an environment variable."
+        )
 
     last_error = ""
     for model in MODELS:
@@ -66,22 +249,24 @@ def gemini_call(prompt: str, use_search: bool = False, retries: int = 3) -> str:
                 resp = requests.post(url, json=body, timeout=60)
             except requests.exceptions.Timeout:
                 last_error = f"{model} timed out"
-                time.sleep(5)
+                time.sleep(3)
                 continue
+            except requests.exceptions.RequestException as e:
+                last_error = f"{model} request error: {e}"
+                break
 
             if resp.status_code == 200:
                 data = resp.json()
                 try:
                     parts = data["candidates"][0]["content"]["parts"]
                     text_parts = [p["text"] for p in parts if "text" in p]
-                    return "\n".join(text_parts)
+                    return "\n".join(text_parts), model
                 except (KeyError, IndexError):
                     last_error = f"Unexpected response from {model}"
                     break
 
             elif resp.status_code == 429:
-                wait = 15 * (attempt + 1)
-                st.toast(f"⏳ Rate limit on {model}. Waiting {wait}s...")
+                wait = 8 * (attempt + 1)
                 time.sleep(wait)
                 last_error = f"429 on {model}"
                 continue
@@ -94,7 +279,7 @@ def gemini_call(prompt: str, use_search: bool = False, retries: int = 3) -> str:
                     try:
                         parts = data["candidates"][0]["content"]["parts"]
                         text_parts = [p["text"] for p in parts if "text" in p]
-                        return "\n".join(text_parts)
+                        return "\n".join(text_parts), model
                     except (KeyError, IndexError):
                         pass
                 last_error = f"{model} 400: {resp.text[:200]}"
@@ -104,10 +289,6 @@ def gemini_call(prompt: str, use_search: bool = False, retries: int = 3) -> str:
                 last_error = f"{model} {resp.status_code}: {resp.text[:200]}"
                 break
 
-        else:
-            continue
-        break
-
     raise ValueError(f"All models failed. Last error: {last_error}")
 
 
@@ -115,7 +296,6 @@ def fix_truncated_json(s: str) -> str:
     stack = []
     in_string = False
     escape = False
-
     for ch in s:
         if escape:
             escape = False
@@ -136,13 +316,10 @@ def fix_truncated_json(s: str) -> str:
 
     if in_string:
         s += '"'
-
     s = s.rstrip().rstrip(',')
-
     closing = {'{': '}', '[': ']'}
     for opener in reversed(stack):
         s += closing[opener]
-
     return s
 
 
@@ -184,16 +361,20 @@ def safe_parse_json(raw: str):
     raise ValueError(f"Cannot parse JSON. Raw response:\n{raw[:400]}")
 
 
-def extract_text_from_pdf(pdf_file):
-    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+@st.cache_data(show_spinner=False)
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = ""
     for page in doc:
         text += page.get_text()
     return text
 
 
-def extract_claims(text: str):
-    prompt = f"""Extract up to 8 specific, verifiable factual claims from this text.
+@st.cache_data(show_spinner=False)
+def extract_claims_cached(text_hash: str, text: str, max_claims: int):
+    """Cached wrapper keyed on a hash of the text so repeated runs on the
+    same document don't re-spend an API call."""
+    prompt = f"""Extract up to {max_claims} specific, verifiable factual claims from this text.
 Focus on: statistics, percentages, dates, financial figures, named entities with attributed facts.
 
 Rules:
@@ -211,9 +392,8 @@ Format exactly like this:
 Category: stat / date / financial / technical / other
 
 Text to analyze:
-{text[:2500]}"""
-
-    raw = gemini_call(prompt, use_search=False)
+{text[:4000]}"""
+    raw, _ = gemini_call(prompt, use_search=False)
     result = safe_parse_json(raw)
     if isinstance(result, dict):
         result = [result]
@@ -237,21 +417,19 @@ Rules:
 - verdict must be exactly: VERIFIED, INACCURATE, or FALSE — nothing else
 - correct_fact: provide the real/current fact if verdict is INACCURATE or FALSE, else null
 - Keep all string values under 200 characters"""
-
     try:
-        raw = gemini_call(prompt, use_search=True)
+        raw, model_used = gemini_call(prompt, use_search=True)
         result = safe_parse_json(raw)
-
         verdict = result.get("verdict", "FALSE").upper().strip()
         if verdict not in ("VERIFIED", "INACCURATE", "FALSE"):
             verdict = "FALSE"
-
         return {
             "verdict": verdict,
             "confidence": result.get("confidence", 0),
             "explanation": result.get("explanation", "No explanation provided."),
             "correct_fact": result.get("correct_fact"),
             "source": result.get("source", "N/A"),
+            "model_used": model_used,
         }
     except Exception as e:
         return {
@@ -259,50 +437,94 @@ Rules:
             "confidence": 0,
             "explanation": f"Verification error: {str(e)[:150]}",
             "correct_fact": None,
-            "source": "N/A"
+            "source": "N/A",
+            "model_used": "N/A",
         }
 
 
-def verdict_badge(verdict):
-    badges = {
-        "VERIFIED":   ("✅ VERIFIED",   "verified"),
-        "INACCURATE": ("⚠️ INACCURATE", "inaccurate"),
-        "FALSE":      ("❌ FALSE",       "false"),
+def verdict_meta(verdict):
+    meta = {
+        "VERIFIED": ("HOLDS", "verified"),
+        "INACCURATE": ("PARTIAL", "inaccurate"),
+        "FALSE": ("VOID", "false"),
     }
-    return badges.get(verdict, ("❌ FALSE", "false"))
+    return meta.get(verdict, ("VOID", "false"))
 
 
-# ── UI ────────────────────────────────────────────────────
-st.markdown("# 🔍 FactCheck AI")
-st.markdown("### *Your Truth Layer for Marketing Content*")
-st.markdown("Upload a PDF — Gemini AI extracts claims and cross-references them against **live Google Search** in real time.")
+def render_entry(r: dict, index: int):
+    stamp_word, css_class = verdict_meta(r.get("verdict", "FALSE"))
+    confidence = r.get("confidence", 0)
+    model_used = r.get("model_used", "")
+    correct = f"<br><b>Correct fact —</b> {r['correct_fact']}" if r.get("correct_fact") else ""
+
+    st.markdown(f"""
+    <div class="entry {css_class}">
+        <span class="stamp {css_class}">{stamp_word}</span>
+        <div class="entry-tag">EXHIBIT {index:02d} · {r.get('category', '').upper()} · {confidence}% CONFIDENCE</div>
+        <div class="entry-claim">{r['claim']}</div>
+        <div class="entry-body">
+            <b>Finding —</b> {r.get('explanation', '')}{correct}<br>
+            <b>Source —</b> {r.get('source', 'N/A')} &nbsp;&nbsp; <b>Model —</b> {model_used or 'N/A'}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ── Sidebar settings ─────────────────────────────────────────
+with st.sidebar:
+    st.markdown("### CONTROL PANEL")
+    max_claims = st.slider("Max claims to extract", 3, 15, 8)
+    max_workers = st.slider(
+        "Parallel verification workers", 1, 5, 3,
+        help="Higher = faster, but more likely to hit rate limits (429s)."
+    )
+    st.divider()
+    st.markdown("**Key status**")
+    if get_api_key():
+        st.success("API key loaded")
+    else:
+        st.error("No API key found — add GEMINI_API_KEY to secrets.toml")
+    st.divider()
+    st.caption("Built by Kishan · Powered by Gemini Flash + Google Search")
+
+# ── Header ───────────────────────────────────────────────────
+st.markdown('<div class="eyebrow">AUTOMATED VERIFICATION DESK</div>', unsafe_allow_html=True)
+st.markdown("# FactCheck")
+st.markdown(
+    '<div class="subtitle">Upload a document. Every claim gets pulled, checked against live search, and stamped with a verdict.</div>',
+    unsafe_allow_html=True
+)
+st.write("")
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Powered By", "Gemini Flash")
-col2.metric("Web Search", "Google Search ✅")
-col3.metric("Verdicts", "3 Types")
-col4.metric("Cost", "100% Free 🎉")
-
-delay = 6  # Default delay between claims
+col1.metric("ENGINE", "Gemini Flash")
+col2.metric("SOURCE", "Live Search")
+col3.metric("VERDICTS", "3 Types")
+col4.metric("COST", "Free")
 
 st.divider()
 
-uploaded_file = st.file_uploader("📎 Upload PDF Document", type=["pdf"], help="Max 10MB")
+uploaded_file = st.file_uploader("Submit a PDF for review", type=["pdf"], help="Max 10MB")
 
 if uploaded_file:
-    with st.spinner("📄 Extracting text from PDF..."):
-        text = extract_text_from_pdf(uploaded_file)
+    file_bytes = uploaded_file.read()
+    text_hash = hashlib.md5(file_bytes).hexdigest()
 
-    st.success(f"✅ Extracted {len(text):,} characters from PDF")
+    with st.spinner("Reading document..."):
+        text = extract_text_from_pdf(file_bytes)
 
-    with st.expander("📝 Preview extracted text"):
+    st.success(f"Extracted {len(text):,} characters from the document")
+    with st.expander("Preview extracted text"):
         st.text(text[:1500] + ("..." if len(text) > 1500 else ""))
 
-    if st.button("🚀 Run Fact-Check", type="primary", use_container_width=True):
+    if not get_api_key():
+        st.error("Cannot run fact-check: no API key configured. See sidebar.")
+        st.stop()
 
-        with st.spinner("🤖 Extracting verifiable claims..."):
+    if st.button("Open Case", type="primary", use_container_width=True):
+        with st.spinner("Pulling claims from the document..."):
             try:
-                claims = extract_claims(text)
+                claims = extract_claims_cached(text_hash, text, max_claims)
             except Exception as e:
                 st.error(f"Claim extraction failed: {e}")
                 st.stop()
@@ -311,66 +533,103 @@ if uploaded_file:
             st.warning("No verifiable claims found in this document.")
             st.stop()
 
-        if len(claims) > 10:
-            st.info(f"ℹ️ Found {len(claims)} claims — checking top 10 to stay within free rate limits.")
-            claims = claims[:10]
+        if len(claims) > max_claims:
+            st.info(f"Found {len(claims)} claims — reviewing the top {max_claims} to stay within free rate limits.")
+            claims = claims[:max_claims]
         else:
-            st.markdown(f"### 📋 Found **{len(claims)}** verifiable claims")
+            st.markdown(f"**{len(claims)} claims entered for review**")
 
+        # ── Parallel verification ───────────────────────────
         results = []
         progress = st.progress(0)
         status_text = st.empty()
+        done = 0
+        total = len(claims)
 
-        for i, claim_obj in enumerate(claims):
-            claim = claim_obj.get("claim", str(claim_obj))
-            status_text.text(f"🔍 Verifying {i+1}/{len(claims)}: {claim[:80]}...")
-            result = verify_claim(claim)
-            result["claim"] = claim
-            result["category"] = claim_obj.get("category", "other")
-            results.append(result)
-            progress.progress((i + 1) / len(claims))
-            if i < len(claims) - 1:
-                time.sleep(delay)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_claim = {
+                executor.submit(verify_claim, c.get("claim", str(c))): c
+                for c in claims
+            }
+            for future in as_completed(future_to_claim):
+                claim_obj = future_to_claim[future]
+                claim_text = claim_obj.get("claim", str(claim_obj))
+                result = future.result()
+                result["claim"] = claim_text
+                result["category"] = claim_obj.get("category", "other")
+                results.append(result)
+                done += 1
+                progress.progress(done / total)
+                status_text.text(f"Reviewed {done}/{total}")
 
         status_text.empty()
         progress.empty()
 
-        verdicts = [r.get("verdict", "FALSE") for r in results]
-        v_count = sum(1 for v in verdicts if v == "VERIFIED")
-        i_count = sum(1 for v in verdicts if v == "INACCURATE")
-        f_count = sum(1 for v in verdicts if v == "FALSE")
+        # Keep results in the original claim order
+        order = {c.get("claim", str(c)): i for i, c in enumerate(claims)}
+        results.sort(key=lambda r: order.get(r["claim"], 0))
 
-        st.divider()
-        st.markdown("## 📊 Results Summary")
+        st.session_state["results"] = results
+        st.session_state["case_date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+# ── Results display (persisted across reruns) ────────────────
+if "results" in st.session_state:
+    results = st.session_state["results"]
+    verdicts = [r.get("verdict", "FALSE") for r in results]
+    v_count = sum(1 for v in verdicts if v == "VERIFIED")
+    i_count = sum(1 for v in verdicts if v == "INACCURATE")
+    f_count = sum(1 for v in verdicts if v == "FALSE")
+
+    st.divider()
+    st.markdown(
+        f'<div class="entry-tag">CASE LOG · {st.session_state.get("case_date", "")}</div>',
+        unsafe_allow_html=True
+    )
+    tab_summary, tab_details, tab_export = st.tabs(["SUMMARY", "EXHIBITS", "EXPORT"])
+
+    with tab_summary:
         mc1, mc2, mc3 = st.columns(3)
-        mc1.metric("✅ Verified", v_count)
-        mc2.metric("⚠️ Inaccurate", i_count)
-        mc3.metric("❌ False", f_count)
+        mc1.metric("HOLDS", v_count)
+        mc2.metric("PARTIAL", i_count)
+        mc3.metric("VOID", f_count)
 
-        st.divider()
-        st.markdown("## 🧾 Detailed Results")
+    with tab_details:
+        filter_choice = st.selectbox(
+            "Filter by verdict",
+            ["All", "VERIFIED", "INACCURATE", "FALSE"]
+        )
+        filtered = results if filter_choice == "All" else [
+            r for r in results if r.get("verdict") == filter_choice
+        ]
+        for idx, r in enumerate(filtered, start=1):
+            render_entry(r, idx)
 
-        for r in results:
-            label, css_class = verdict_badge(r.get("verdict", "FALSE"))
-            correct = f"\n\n**✏️ Correct Fact:** {r['correct_fact']}" if r.get("correct_fact") else ""
-            source = f"\n\n**🔗 Source:** {r.get('source', 'N/A')}"
-            confidence = r.get("confidence", 0)
-
-            st.markdown(f"""
-<div class="claim-card {css_class}">
-<strong>{label}</strong> &nbsp;&nbsp; <em>Confidence: {confidence}%</em> &nbsp;&nbsp; <code>{r.get('category','').upper()}</code><br><br>
-<strong>Claim:</strong> {r['claim']}<br><br>
-<strong>📌 Verdict:</strong> {r.get('explanation', '')}
-{correct}{source}
-</div>
-""", unsafe_allow_html=True)
-
+    with tab_export:
         st.download_button(
-            "⬇️ Download Full Report (JSON)",
+            "Download full report — JSON",
             data=json.dumps(results, indent=2),
             file_name="factcheck_report.json",
             mime="application/json"
         )
 
+        csv_lines = ["claim,verdict,confidence,category,explanation,correct_fact,source"]
+        for r in results:
+            row = [
+                str(r.get("claim", "")).replace(",", ";"),
+                r.get("verdict", ""),
+                str(r.get("confidence", "")),
+                r.get("category", ""),
+                str(r.get("explanation", "")).replace(",", ";"),
+                str(r.get("correct_fact", "") or "").replace(",", ";"),
+                str(r.get("source", "")).replace(",", ";"),
+            ]
+            csv_lines.append(",".join(row))
+        st.download_button(
+            "Download report — CSV",
+            data="\n".join(csv_lines),
+            file_name="factcheck_report.csv",
+            mime="text/csv"
+        )
+
 st.divider()
-st.markdown("*Built for CogCulture GEO Assessment • Powered by Gemini Flash + Google Search*")
+st.markdown('<div class="entry-tag">Built by Kishan · Powered by Gemini Flash + Google Search</div>', unsafe_allow_html=True)
