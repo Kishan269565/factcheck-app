@@ -109,5 +109,3 @@ requests>=2.31.0
 ![Snapshot 2](https://drive.google.com/uc?export=view&id=15N-H1JYTB91eD98dsVZfxHabnONHeLhv)
 
 ---
-
-*Built for CogCulture GEO Assessment · Powered by Gemini Flash + Google Search*
